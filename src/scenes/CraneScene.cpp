@@ -64,6 +64,15 @@ void CraneScene::init(PhysicsWorld& world, entt::registry& reg) {
     reg.emplace<RenderComponent>(mBucket, Color{60, 120, 200, 255});
     reg.emplace<DragTargetComponent>(mBucket);
 
+    // High position-iteration count so the hard distance constraints converge
+    // within a single timestep even with two simultaneous constraints.
+    auto* bucketActor = static_cast<physx::PxRigidDynamic*>(
+        reg.get<RigidBodyComponent>(mBucket).actor);
+    bucketActor->setSolverIterationCounts(32, 4);
+    // Simulate chain friction: damp out pendulum swing and tumbling.
+    bucketActor->setLinearDamping(4.0f);
+    bucketActor->setAngularDamping(8.0f);
+
     // ── Hoist rope: boom TIP → bucket ─────────────────────────────────────────
     // frameA is at the tip end of the boom in boom-local space (+BOOM_HALF along local X).
     {
@@ -71,7 +80,7 @@ void CraneScene::init(PhysicsWorld& world, entt::registry& reg) {
         physx::PxTransform frameB(physx::PxIdentity);
         auto jc = world.createDistanceJoint(reg,
             mBoom, mBucket, 0.2f, mHoistLength,
-            4000.0f, 400.0f, frameA, frameB);
+            0.0f, 0.0f, frameA, frameB);  // stiffness=0 → hard chain, no spring
         mHoistJoint = static_cast<physx::PxDistanceJoint*>(jc.joint);
         auto je = reg.create();
         reg.emplace<JointComponent>(je, jc);
@@ -85,7 +94,7 @@ void CraneScene::init(PhysicsWorld& world, entt::registry& reg) {
         physx::PxTransform frameB(physx::PxIdentity);
         auto jc = world.createDistanceJoint(reg,
             mBase, mBucket, 0.2f, mDragLength,
-            4000.0f, 400.0f, frameA, frameB);
+            0.0f, 0.0f, frameA, frameB);  // stiffness=0 → hard chain, no spring
         mDragJoint = static_cast<physx::PxDistanceJoint*>(jc.joint);
         auto je = reg.create();
         reg.emplace<JointComponent>(je, jc);
@@ -115,8 +124,17 @@ void CraneScene::update(PhysicsWorld& world, entt::registry& reg, float dt) {
     world.setKinematicPose(mBase, reg,
         physx::PxTransform(physx::PxVec3(0, BASE_HALF_Y, 0), baseYaw));
 
-    if (mHoistJoint) mHoistJoint->setMaxDistance(mHoistLength);
-    if (mDragJoint)  mDragJoint->setMaxDistance(mDragLength);
+    // Only write to the joint when the value actually changed — calling
+    // setMaxDistance every frame resets internal solver state mid-step.
+    static float prevHoist = -1.0f, prevDrag = -1.0f;
+    if (mHoistJoint && mHoistLength != prevHoist) {
+        mHoistJoint->setMaxDistance(mHoistLength);
+        prevHoist = mHoistLength;
+    }
+    if (mDragJoint && mDragLength != prevDrag) {
+        mDragJoint->setMaxDistance(mDragLength);
+        prevDrag = mDragLength;
+    }
 }
 
 // ── Name ──────────────────────────────────────────────────────────────────────

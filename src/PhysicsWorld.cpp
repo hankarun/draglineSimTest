@@ -23,6 +23,9 @@ void PhysicsWorld::init() {
     sceneDesc.gravity       = PxVec3(0.0f, -9.81f, 0.0f);
     sceneDesc.cpuDispatcher = mDispatcher;
     sceneDesc.filterShader  = PxDefaultSimulationFilterShader;
+    // TGS solver eliminates the compliance ("rubber band") that PGS exhibits on
+    // hard distance constraints. It is strictly better for chain/rope simulations.
+    sceneDesc.solverType    = PxSolverType::eTGS;
     mScene = mPhysics->createScene(sceneDesc);
 
     // Transmit full scene data to PVD so the debugger shows constraints and contacts.
