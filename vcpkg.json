@@ -1,0 +1,10 @@
+{
+  "name": "phytest",
+  "version-string": "0.1.0",
+  "description": "PhysX 5 physics simulator with Raylib rendering and EnTT ECS",
+  "dependencies": [
+    { "name": "physx", "platform": "windows & x64" },
+    "raylib",
+    "entt"
+  ]
+}
